@@ -1,0 +1,593 @@
+String Art Transformer — V1 Implementation Specification
+1. Objective
+
+Implement a Transformer-based model that generates a set/sequence of strings connecting pins around a circular frame to reproduce a target grayscale string-art image.
+
+The model should generate only the strings. It must not generate:
+
+robot commands,
+fabrication trajectories,
+traversal paths,
+pin-to-pin routing beyond the generated string endpoints.
+
+The model receives a target image and autoregressively generates the endpoints of the strings. A differentiable rasterizer converts the generated strings into a rendered image, which is used to calculate the reward for reinforcement learning.
+
+The initial version is intended as a simple baseline. More sophisticated geometric encodings and architectural improvements will be considered in V2.
+
+2. Problem Representation
+2.1 Circular pin arrangement
+
+The frame contains exactly 256 pins.
+
+Pins are indexed:
+
+0, 1, 2, ..., 255
+
+
+The indices are ordered clockwise around the circle.
+
+For V1, pin indices are treated as ordinary categorical values. Do not use explicit circular/Fourier/geometric encoding.
+
+Circular positional encoding is explicitly deferred to V2.
+
+3. Token Representation
+
+Each endpoint is represented by a token with a value from:
+
+0 ... 511
+
+
+There are therefore 512 possible endpoint tokens.
+
+The token represents:
+
+pin_index × 2 + connection_side
+
+
+where:
+
+pin_index ∈ {0, ..., 255}
+connection_side ∈ {0, 1}
+
+
+Thus:
+
+token = 2 * pin_index + connection_side
+
+
+and:
+
+pin_index = token // 2
+connection_side = token % 2
+
+
+The connection-side information is part of the token representation in V1.
+
+No additional geometric encoding of the token is required in V1.
+
+4. String Representation
+
+One string consists of exactly two endpoint tokens:
+
+(endpoint_0, endpoint_1)
+
+
+For example:
+
+[37, 182]
+
+
+represents one string connecting the corresponding endpoints.
+
+A complete generated solution consists of a sequence of strings:
+
+[(t0, t1), (t2, t3), (t4, t5), ...]
+
+
+which is represented to the Transformer as a flat token sequence:
+
+t0, t1, t2, t3, t4, t5, ...
+
+
+Each pair of consecutive tokens represents one string.
+
+5. Special Tokens
+
+The model vocabulary consists of:
+
+0 ... 511   endpoint tokens
+512         BOS
+513         EOS
+
+
+BOS indicates the beginning of generation.
+
+EOS terminates the sequence and therefore determines the number of generated strings.
+
+The model should be capable of generating a variable number of strings up to a configurable maximum sequence length.
+
+6. Ordering
+
+The model is autoregressive and generates strings sequentially.
+
+The ordering of strings is treated as part of the generated sequence even though the final rendered image is invariant to the order of strings.
+
+For V1, do not introduce a sophisticated permutation-invariant architecture.
+
+The model simply generates:
+
+BOS
+endpoint 0
+endpoint 1
+endpoint 0
+endpoint 1
+...
+EOS
+
+
+The exact strategy for handling equivalent/reversed endpoint pairs should be kept simple in V1 and should not introduce additional architectural complexity. Strings should be ordered with respect to indices of the first and then the second endpoint. Endpoints of a string should be ordered with respect to their indices.
+
+7. Model Architecture
+
+Use an encoder-decoder Transformer architecture.
+
+The architecture consists of:
+
+Image encoder
+Transformer encoder
+GPT-2-based autoregressive decoder
+Cross-attention between decoder and image encoder
+Token prediction head
+
+Overall:
+
+Target Image
+     │
+     ▼
+Convolutional Patch/Image Embedding
+     │
+     ▼
+Image Tokens
+     │
+     ▼
+Transformer Encoder
+     │
+     │ encoder hidden states
+     ▼
+GPT-2 Decoder
+     │
+     │ cross-attention
+     ▼
+512/514-way token prediction
+     │
+     ▼
+Generated String Sequence
+     │
+     ▼
+Differentiable Rasterizer
+     │
+     ▼
+Rendered Image
+     │
+     ▼
+Reward
+
+8. Image Encoder
+
+The target image is a grayscale image.
+
+For V1, process the image using convolutional layers before passing the resulting tokens to the Transformer encoder.
+
+The image should first be converted into a sequence of feature tokens using convolution(s).
+
+Conceptually:
+
+image
+  ↓
+convolutional feature extraction
+  ↓
+spatial feature map
+  ↓
+flatten spatial dimensions
+  ↓
+image token sequence
+  ↓
+Transformer encoder
+
+
+The exact convolution architecture is an implementation detail and should be kept simple for the baseline.
+
+A reasonable initial implementation is a convolution with a stride/kernel that produces a patch-like spatial representation.
+
+The encoder does not need to explicitly contain pin tokens in V1.
+
+Do not use:
+
+pin-specific encoder tokens,
+polar coordinates,
+Fourier features,
+circular positional encoding,
+multi-scale image features.
+
+Those are possible V2 improvements.
+
+9. Image Transformer Encoder
+
+The convolutional feature map is converted into a sequence:
+
+[B, N_image_tokens, hidden_dim]
+
+
+where:
+
+B = batch size
+N_image_tokens = number of spatial image tokens
+hidden_dim = Transformer hidden dimension
+
+The sequence is passed through a standard Transformer encoder.
+
+A positional embedding should be added to the image tokens so that the encoder knows their spatial locations.
+
+For V1, use a standard learned 2D/spatial positional representation.
+
+Do not implement circular/geometric positional encoding yet.
+
+The output of the encoder is:
+
+encoder_hidden_states
+
+
+which is supplied to the GPT-2 decoder as cross-attention memory.
+
+10. Decoder
+
+Use the Hugging Face GPT-2 architecture as the autoregressive decoder.
+
+Configure GPT-2 with:
+
+add_cross_attention = true
+
+
+so each decoder block contains:
+
+causal self-attention,
+encoder-decoder cross-attention,
+feed-forward network.
+
+The decoder receives previously generated endpoint tokens and attends to the image encoder representation.
+
+The decoder therefore models:
+
+P(token_t | image, token_0, ..., token_{t-1})
+
+11. Decoder Positional Embeddings
+
+Each generated token receives two structural positional embeddings.
+
+11.1 String positional embedding
+
+Each string has a string index:
+
+string 0
+string 1
+string 2
+...
+
+
+A learned embedding represents the string's position in the generated sequence.
+
+11.2 Endpoint positional embedding
+
+Each token within a string has an endpoint position:
+
+endpoint 0
+endpoint 1
+
+
+A learned embedding represents whether the token is the first or second endpoint of the current string.
+
+Conceptually, the decoder input representation is:
+
+token_embedding
++
+string_position_embedding
++
+endpoint_position_embedding
+
+
+For example:
+
+string 0, endpoint 0
+string 0, endpoint 1
+string 1, endpoint 0
+string 1, endpoint 1
+string 2, endpoint 0
+string 2, endpoint 1
+...
+
+
+The endpoint position is therefore periodic with period two.
+
+The model should not rely solely on ordinary absolute token positions to represent this structure.
+
+12. GPT-2 Token Vocabulary
+
+The GPT-2 language-model head should be adapted to the custom vocabulary.
+
+The output vocabulary is:
+
+512 endpoint tokens
++ BOS
++ EOS
+
+
+for a total vocabulary size of 514.
+
+The output logits therefore have shape:
+
+[B, sequence_length, 514]
+
+
+Only the endpoint-token logits and special-token logits are required.
+
+No natural-language tokenizer is used.
+
+13. Generation
+
+Generation is autoregressive.
+
+At each step:
+
+image
+  +
+previously generated tokens
+        ↓
+      GPT-2
+        ↓
+probability distribution over 514 tokens
+        ↓
+sample next token
+
+
+During training, sequences are sampled from the model's policy so that the resulting strings can be rendered and evaluated.
+
+The model must support sampling rather than only greedy/argmax decoding because reinforcement learning requires exploration.
+
+Possible sampling parameters such as temperature should be configurable.
+
+14. Differentiable Rasterizer
+
+The generated token sequence is converted into strings.
+
+Each pair of endpoint tokens defines one string.
+
+The strings are passed to a differentiable rasterizer.
+
+The rasterizer produces a predicted grayscale image.
+
+Conceptually:
+
+generated tokens
+      ↓
+endpoint decoding
+      ↓
+string geometry
+      ↓
+differentiable rasterizer
+      ↓
+predicted image
+
+
+The rasterizer is responsible only for rendering the strings.
+
+It does not need to model robot motion or fabrication paths.
+
+15. Image Loss / Reward
+
+The rendered image is compared against the target image.
+
+The baseline image error should follow the intended formulation:
+
+L=∥D(clamp⁡(Ax))−y∥22
+
+where:
+
+x represents the generated string configuration,
+A represents the string-to-image contribution/rasterization operation,
+clamp constrains the resulting image representation,
+D represents any required image/downsampling operation,
+y is the target image.
+
+The exact implementation of the differentiable rasterizer determines the practical form of this calculation.
+
+The reinforcement-learning reward should be derived from this image reconstruction error, e.g.:
+
+R=−L.
+
+Lower image error therefore corresponds to higher reward.
+
+16. Reinforcement Learning
+
+The model must be trained with reinforcement learning.
+
+A large supervised dataset of optimal/greedy string solutions is not assumed to exist.
+
+The model itself samples string sequences:
+
+image
+  ↓
+policy
+  ↓
+sampled string sequence
+  ↓
+differentiable rasterizer
+  ↓
+image reconstruction error
+  ↓
+reward
+
+
+The policy is:
+
+πθ(at∣a<t,I)
+
+where:
+
+I is the target image,
+at is the next generated token,
+a<t are previously generated tokens.
+
+The complete sampled sequence constitutes an episode/action sequence.
+
+A policy-gradient method such as REINFORCE/PPO may be used.
+
+The initial implementation should favor the simplest stable policy-gradient approach before introducing more sophisticated RL algorithms.
+
+17. Important RL Consideration
+
+The differentiable rasterizer provides a differentiable mapping from generated string parameters to an image, but the generated endpoint tokens are discrete.
+
+Therefore, ordinary backpropagation cannot pass directly through a sampled categorical token.
+
+The training implementation must explicitly handle this using an RL objective.
+
+The initial baseline should therefore use:
+
+Transformer probabilities
+        ↓
+categorical sampling
+        ↓
+discrete strings
+        ↓
+differentiable rasterization
+        ↓
+reward
+        ↓
+policy-gradient update
+
+
+The differentiable rasterizer is primarily used to obtain a high-quality image-based reward.
+
+A later version may investigate differentiable relaxations such as Gumbel-Softmax.
+
+18. V1 Scope
+
+The first implementation should contain only the following core ideas:
+
+256 circular pins.
+Pins indexed clockwise from 0 to 255.
+512 endpoint tokens.
+Token = (pin, side).
+Two endpoint tokens = one string.
+Autoregressive string generation.
+BOS/EOS tokens.
+Convolutional image feature extraction.
+Transformer image encoder.
+GPT-2 decoder.
+GPT-2 encoder-decoder cross-attention.
+String-position embeddings.
+Endpoint-within-string embeddings.
+Differentiable string rasterizer.
+Image reconstruction reward.
+Reinforcement learning / policy-gradient training.
+19. Explicitly Out of Scope for V1
+
+Do not implement the following yet:
+
+circular/Fourier pin embeddings,
+explicit geometric pin embeddings,
+polar coordinate features,
+pin-specific encoder tokens,
+multi-scale image encoders,
+robot commands,
+robot trajectories,
+fabrication path planning,
+connectivity constraints,
+supervised pretraining on a large greedy-generated dataset,
+Gumbel-Softmax unless required for debugging/experimentation,
+sophisticated permutation-invariant set architectures,
+learned fabrication ordering.
+
+These can be investigated after the baseline works.
+
+20. V2 Ideas
+
+Potential V2 improvements include:
+
+Circular encoding of pin positions.
+Fourier features for pin geometry.
+Explicit pin tokens in the encoder.
+Better geometric representations of endpoint tokens.
+Improved handling of string-order permutation symmetry.
+Better handling of endpoint-pair symmetry.
+More sophisticated RL algorithms.
+Differentiable categorical relaxations.
+Multi-scale visual encoding.
+Incorporating fabrication constraints after the visual string generator is established.
+
+The V1 implementation should be structured so these components can be replaced without rewriting the entire training pipeline.
+
+21. Desired End-to-End Interface
+
+The final V1 model should conceptually expose:
+
+tokens = model.generate(image)
+
+
+where tokens is a sequence such as:
+
+[BOS, 37, 182, 91, 302, 74, 419, ..., EOS]
+
+
+and:
+
+strings = decode_tokens(tokens)
+
+
+produces:
+
+[
+    (pin_18, side_1, pin_91, side_0),
+    (pin_45, side_0, pin_151, side_0),
+    ...
+]
+
+
+The generated strings can then be passed directly to the differentiable rasterizer.
+
+The complete training loop should conceptually be:
+
+target image
+      │
+      ▼
+image encoder
+      │
+      ▼
+Transformer encoder
+      │
+      ▼
+GPT-2 decoder
+      │
+      ▼
+sample endpoint tokens
+      │
+      ▼
+decode token pairs into strings
+      │
+      ▼
+differentiable rasterizer
+      │
+      ▼
+rendered image
+      │
+      ▼
+image reconstruction error
+      │
+      ▼
+reward
+      │
+      ▼
+RL / policy-gradient update
+
+
+The primary objective of V1 is to establish that this complete pipeline can learn to generate useful string configurations directly from images without requiring a large supervised dataset of greedy solutions.
