@@ -5,7 +5,7 @@ import json
 @dataclass
 class TrainingConfig:
     # Dataset
-    dataset_dir: str = "data/generated"
+    dataset_dir: str = "artifacts/generated_data/dataset"
 
     # Training
     batch_size: int = 32
