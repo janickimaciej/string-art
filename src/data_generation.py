@@ -11,7 +11,7 @@ from data.string_generator import StringGenerator
 from data.synthetic_dataset import SyntheticDataset
 
 from rendering.geometry import Geometry
-from rendering.rasterizer import Rasterizer
+from rendering.rasterizer import WuRasterizer
 from tokenizers.string_tokenizer import StringTokenizer
 
 
@@ -35,16 +35,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         required=True,
         help="Path to the data-generation configuration JSON file.",
-    )
-
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=None,
-        help=(
-            "Optional output directory override. If omitted, "
-            "DataGenerationConfig.output_dir is used."
-        ),
     )
 
     parser.add_argument(
@@ -86,10 +76,6 @@ def main() -> int:
             str(args.data_config)
         )
 
-        # Allow the CLI to override the configured output directory.
-        if args.output_dir is not None:
-            data_config.output_dir = str(args.output_dir)
-
         output_dir = Path(data_config.output_dir)
 
         print("String Art synthetic dataset generation")
@@ -113,7 +99,7 @@ def main() -> int:
 
         # Initialize the shared geometry and rendering dependencies.
         geometry = Geometry(model_config)
-        rasterizer = Rasterizer(model_config, geometry)
+        rasterizer = WuRasterizer(model_config, geometry)
         tokenizer = StringTokenizer(model_config)
 
         generator = StringGenerator(

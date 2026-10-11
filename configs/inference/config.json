@@ -1,0 +1,9 @@
+{
+  "checkpoint_path": "checkpoints/best_model.pt",
+  "device": "auto",
+  "max_strings": 256,
+  "temperature": 1.0,
+  "greedy": true,
+  "output_dir": "outputs",
+  "save_rendered_image": true
+}

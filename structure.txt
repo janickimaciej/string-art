@@ -8,6 +8,16 @@ artifacts/
         ├── test/
         └── metadata.json
 
+configs/
+├── data_generation/
+│   └── config.json
+├── inference/
+│   └── config.json
+├── model/
+│   └── config.json
+└── training/
+    └── config.json
+
 src/
 ├── configs/
 │   ├── model_config.py

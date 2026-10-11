@@ -1,0 +1,17 @@
+{
+  "image_height": 256,
+  "image_width": 256,
+  "num_pins": 256,
+  "frame_radius": 115.0,
+  "pin_diameter": 3.0,
+  "supersampling_factor": 4,
+  "bos_token_id": 512,
+  "eos_token_id": 513,
+  "vocab_size": 514,
+  "max_strings": 130560,
+  "hidden_dim": 256,
+  "num_heads": 8,
+  "encoder_layers": 4,
+  "decoder_layers": 4,
+  "dropout": 0.1
+}

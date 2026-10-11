@@ -35,6 +35,7 @@ class DataGenerationConfig:
     def to_json(self, path: str):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(asdict(self), f, indent=2)
+            f.write("\n")
 
     @classmethod
     def from_json(cls, path: str):
