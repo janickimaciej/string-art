@@ -1,0 +1,53 @@
+artifacts/
+├── inference/
+├── models/
+└── generated_data/
+    └── dataset0
+        ├── train/
+        ├── validation/
+        ├── test/
+        └── metadata.json
+
+src/
+├── configs/
+│   ├── model_config.py
+│   ├── training_config.py
+│   ├── inference_config.py
+│   └── data_generation_config.py
+│
+├── data/
+│   ├── string_generator.py
+│   ├── synthetic_dataset.py
+│   ├── dataset_loader.py
+│   └── collate.py
+│
+├── evaluation/
+│   └── evaluator.py
+│
+├── inference/
+│   └── inference.py
+│
+├── models/
+│   ├── image_encoder.py
+│   ├── decoder.py
+│   └── encoder_decoder.py
+│
+├── rendering/
+│   ├── geometry.py
+│   └── rasterizer.py
+│
+├── tokenizers/
+│   ├── image_tokenizer.py
+│   └── string_tokenizer.py
+│
+├── training/
+│   ├── trainer.py
+│   └── losses.py
+│
+├── utils/
+│   └── reproducibility.py
+│   
+├── generate_dataset.py
+├── training.py
+├── inference.py
+└── evaluate.py
