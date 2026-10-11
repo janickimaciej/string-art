@@ -2,7 +2,7 @@ artifacts/
 ├── inference/
 ├── models/
 └── generated_data/
-    └── dataset0
+    └── dataset
         ├── train/
         ├── validation/
         ├── test/
@@ -19,7 +19,7 @@ src/
 │   ├── string_generator.py
 │   ├── synthetic_dataset.py
 │   ├── dataset_loader.py
-│   └── collate.py
+│   └── collator.py
 │
 ├── evaluation/
 │   └── evaluator.py
@@ -58,7 +58,7 @@ The project is divided into configuration, data generation and loading, tokeniza
 
 The `configs/` package defines dataclasses for model architecture and geometry, training, inference, and dataset generation. These configurations are passed to the relevant modules rather than duplicating settings across the codebase.
 
-The `data/` package handles synthetic dataset creation and loading. `string_generator.py` generates random string configurations as endpoint-token pairs. `synthetic_dataset.py` combines the generator, string tokenizer, geometry, and Wu rasterizer to create image–token pairs and save them to disk. `dataset_loader.py` reads existing dataset files, while `collate.py` batches examples, pads token sequences, and prepares decoder inputs, labels, and attention masks. Dataset generation is an independent offline step; training must never generate or render examples on the fly.
+The `data/` package handles synthetic dataset creation and loading. `string_generator.py` generates random string configurations as endpoint-token pairs. `synthetic_dataset.py` combines the generator, string tokenizer, geometry, and Wu rasterizer to create image–token pairs and save them to disk. `dataset_loader.py` reads existing dataset files, while `collator.py` batches examples, pads token sequences, and prepares decoder inputs, labels, and attention masks. Dataset generation is an independent offline step; training must never generate or render examples on the fly.
 
 The `tokenizers/` package converts between representations. `string_tokenizer.py` encodes and decodes endpoint-token sequences, including BOS/EOS and canonical string ordering. `image_tokenizer.py` converts grayscale images into spatial feature tokens using trainable convolutional feature extraction, projection, and positional embeddings.
 

@@ -5,7 +5,7 @@ import json
 @dataclass
 class DataGenerationConfig:
     # Output
-    output_dir: str = "data/generated"
+    output_dir: str = "artifacts/generated_data/dataset"
 
     # Dataset sizes
     train_samples: int = 100_000
@@ -14,7 +14,9 @@ class DataGenerationConfig:
 
     # Random string configurations
     min_strings: int = 1
-    max_strings: int = 256
+    max_strings: int = 32_768
+    avg_strings: int = 8192
+    stddev_strings: int = 2048
 
     # Reproducibility
     seed: int = 42

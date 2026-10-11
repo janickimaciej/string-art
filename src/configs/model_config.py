@@ -22,7 +22,7 @@ class ModelConfig:
     vocab_size: int = eos_token_id + 1
 
     # Maximum number of strings
-    max_strings: int = 256
+    max_strings: int = 130_560
 
     # Transformer
     hidden_dim: int = 256

@@ -222,7 +222,7 @@ The implementation should maintain the following separation of responsibilities:
 data/string_generator.py: generates random string configurations.
 data/synthetic_dataset.py: implements the offline dataset-generation pipeline and the disk-backed dataset reader, with clearly separated interfaces.
 data/dataset_factory.py: creates datasets and DataLoaders from saved files.
-data/collate.py: pads token sequences and creates batch masks.
+data/collator.py: pads token sequences and creates batch masks.
 rendering/geometry.py: defines pin centers and side-specific attachment points.
 rendering/rasterizer.py: implements Wu rasterization and downsampling.
 tokenizers/string_tokenizer.py: encodes and decodes canonical endpoint-token sequences.
