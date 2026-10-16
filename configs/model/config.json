@@ -1,10 +1,10 @@
 {
-  "image_height": 256,
-  "image_width": 256,
+  "image_height": 512,
+  "image_width": 512,
   "num_pins": 256,
   "frame_radius": 115.0,
   "pin_diameter": 3.0,
-  "supersampling_factor": 4,
+  "supersampling_factor": 8,
   "bos_token_id": 512,
   "eos_token_id": 513,
   "vocab_size": 514,

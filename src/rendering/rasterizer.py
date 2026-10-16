@@ -5,10 +5,12 @@ import math
 
 import torch
 import torch.nn.functional as F
+import triton
+import triton.language as tl
 from PIL import Image
 
 from configs.model_config import ModelConfig
-from rendering.geometry import IGeometry
+from rendering.geometry import IGeometry, Geometry
 
 
 class IRasterizer(ABC):
@@ -59,20 +61,265 @@ class IRasterizer(ABC):
         raise NotImplementedError
 
 
+@triton.jit
+def _rasterize_lines_kernel(
+    lines,
+    canvas,
+    width: tl.constexpr,
+    height: tl.constexpr,
+    BLOCK: tl.constexpr,
+):
+    """Rasterize one antialiased line per Triton program."""
+    line_id = tl.program_id(0)
+
+    x0 = tl.load(lines + line_id * 4 + 0)
+    y0 = tl.load(lines + line_id * 4 + 1)
+    x1 = tl.load(lines + line_id * 4 + 2)
+    y1 = tl.load(lines + line_id * 4 + 3)
+
+    # Liang-Barsky clipping against pixel-center bounds.
+    dx = x1 - x0
+    dy = y1 - y0
+    t_enter = 0.0
+    t_exit = 1.0
+
+    for i in tl.static_range(4):
+        if i == 0:
+            p = -dx
+            q = x0
+        elif i == 1:
+            p = dx
+            q = (width - 1.0) - x0
+        elif i == 2:
+            p = -dy
+            q = y0
+        else:
+            p = dy
+            q = (height - 1.0) - y0
+
+        if p == 0.0:
+            if q < 0.0:
+                return
+        else:
+            t = q / p
+            if p < 0.0:
+                t_enter = tl.maximum(t_enter, t)
+            else:
+                t_exit = tl.minimum(t_exit, t)
+
+            if t_enter > t_exit:
+                return
+
+    # Preserve the original start point before updating coordinates.
+    orig_x0 = x0
+    orig_y0 = y0
+
+    x0 = orig_x0 + t_enter * dx
+    y0 = orig_y0 + t_enter * dy
+    x1 = orig_x0 + t_exit * dx
+    y1 = orig_y0 + t_exit * dy
+
+    # Wu's algorithm operates on shallow lines.
+    steep = tl.abs(y1 - y0) > tl.abs(x1 - x0)
+
+    if steep:
+        tmp = x0
+        x0 = y0
+        y0 = tmp
+        tmp = x1
+        x1 = y1
+        y1 = tmp
+
+    if x0 > x1:
+        tmp = x0
+        x0 = x1
+        x1 = tmp
+        tmp = y0
+        y0 = y1
+        y1 = tmp
+
+    dx = x1 - x0
+    dy = y1 - y0
+
+    # Degenerate segment: render one pixel.
+    if tl.abs(dx) < 1.0e-12:
+        px = tl.floor(x0 + 0.5).to(tl.int32)
+        py = tl.floor(y0 + 0.5).to(tl.int32)
+
+        if steep:
+            tmp = px
+            px = py
+            py = tmp
+
+        if (
+            (px >= 0)
+            & (px < width)
+            & (py >= 0)
+            & (py < height)
+        ):
+            tl.atomic_add(
+                canvas + py * width + px,
+                1.0,
+                sem="relaxed",
+            )
+        return
+
+    gradient = dy / dx
+
+    # First endpoint, including its fractional coverage.
+    x_first = tl.floor(x0 + 0.5).to(tl.int32)
+    y_first = y0 + gradient * (x_first.to(tl.float32) - x0)
+    gap_first = 1.0 - (
+        (x0 + 0.5) - tl.floor(x0 + 0.5)
+    )
+
+    iy_first = tl.floor(y_first).to(tl.int32)
+    f_first = y_first - tl.floor(y_first)
+
+    c0 = (1.0 - f_first) * gap_first
+    c1 = f_first * gap_first
+
+    if steep:
+        px = iy_first
+        py = x_first
+    else:
+        px = x_first
+        py = iy_first
+
+    if (
+        (px >= 0) & (px < width)
+        & (py >= 0) & (py < height)
+        & (c0 > 0.0)
+    ):
+        tl.atomic_add(
+            canvas + py * width + px, c0, sem="relaxed"
+        )
+
+    if steep:
+        px = iy_first + 1
+        py = x_first
+    else:
+        px = x_first
+        py = iy_first + 1
+
+    if (
+        (px >= 0) & (px < width)
+        & (py >= 0) & (py < height)
+        & (c1 > 0.0)
+    ):
+        tl.atomic_add(
+            canvas + py * width + px, c1, sem="relaxed"
+        )
+
+    # Second endpoint.
+    x_last = tl.floor(x1 + 0.5).to(tl.int32)
+    y_last = y1 + gradient * (x_last.to(tl.float32) - x1)
+    gap_last = (x1 + 0.5) - tl.floor(x1 + 0.5)
+
+    iy_last = tl.floor(y_last).to(tl.int32)
+    f_last = y_last - tl.floor(y_last)
+
+    c0 = (1.0 - f_last) * gap_last
+    c1 = f_last * gap_last
+
+    if steep:
+        px = iy_last
+        py = x_last
+    else:
+        px = x_last
+        py = iy_last
+
+    if (
+        (px >= 0) & (px < width)
+        & (py >= 0) & (py < height)
+        & (c0 > 0.0)
+    ):
+        tl.atomic_add(
+            canvas + py * width + px, c0, sem="relaxed"
+        )
+
+    if steep:
+        px = iy_last + 1
+        py = x_last
+    else:
+        px = x_last
+        py = iy_last + 1
+
+    if (
+        (px >= 0) & (px < width)
+        & (py >= 0) & (py < height)
+        & (c1 > 0.0)
+    ):
+        tl.atomic_add(
+            canvas + py * width + px, c1, sem="relaxed"
+        )
+
+    # Interior pixels, processed in parallel blocks.
+    start = x_first + 1
+    stop = x_last
+    offsets = tl.arange(0, BLOCK)
+    offset = 0
+
+    while offset < stop - start:
+        xs = start + offset + offsets
+        mask = xs < stop
+
+        ys = y_first + gradient * (xs.to(tl.float32) - x_first)
+        iy = tl.floor(ys).to(tl.int32)
+        frac = ys - tl.floor(ys)
+
+        cov0 = 1.0 - frac
+        cov1 = frac
+
+        if steep:
+            px0 = iy
+            py0 = xs
+            px1 = iy + 1
+            py1 = xs
+        else:
+            px0 = xs
+            py0 = iy
+            px1 = xs
+            py1 = iy + 1
+
+        valid0 = (
+            mask
+            & (px0 >= 0) & (px0 < width)
+            & (py0 >= 0) & (py0 < height)
+            & (cov0 > 0.0)
+        )
+        valid1 = (
+            mask
+            & (px1 >= 0) & (px1 < width)
+            & (py1 >= 0) & (py1 < height)
+            & (cov1 > 0.0)
+        )
+
+        tl.atomic_add(
+            canvas + py0 * width + px0,
+            cov0,
+            sem="relaxed",
+            mask=valid0,
+        )
+        tl.atomic_add(
+            canvas + py1 * width + px1,
+            cov1,
+            sem="relaxed",
+            mask=valid1,
+        )
+
+        offset += BLOCK
+
+
 class WuRasterizer(IRasterizer):
     """
-    Deterministic Xiaolin Wu line rasterizer.
+    GPU-accelerated antialiased line rasterizer.
 
-    Coordinates returned by IGeometry are in target-image pixel space.
-    Lines are rendered at supersampling resolution with a nominal width
-    of one high-resolution pixel.
+    Uses a Wu-style coverage kernel, additive atomic accumulation,
+    saturation, and GPU-side area downsampling.
 
-    Intensity convention:
-        0.0 = white background
-        1.0 = maximum darkness
-
-    Each string contributes anti-aliased coverage additively. The final
-    high-resolution image is area-downsampled to the target resolution.
+    Returns a CPU float32 tensor to preserve the original API's
+    output-device behavior.
     """
 
     def __init__(
@@ -88,275 +335,147 @@ class WuRasterizer(IRasterizer):
         if config.supersampling_factor < 1:
             raise ValueError("supersampling_factor must be >= 1.")
 
+        if not torch.cuda.is_available():
+            raise RuntimeError("WuRasterizer requires a CUDA GPU.")
+
+        self.device = torch.device("cuda")
         self.scale = int(config.supersampling_factor)
         self.high_height = config.image_height * self.scale
         self.high_width = config.image_width * self.scale
 
-    @staticmethod
-    def _ipart(x: float) -> int:
-        return math.floor(x)
-
-    @staticmethod
-    def _round(x: float) -> int:
-        # Match the conventional Wu algorithm's floor(x + 0.5).
-        return math.floor(x + 0.5)
-
-    @staticmethod
-    def _fpart(x: float) -> float:
-        return x - math.floor(x)
-
-    @staticmethod
-    def _rfpart(x: float) -> float:
-        return 1.0 - (x - math.floor(x))
-
-    @staticmethod
-    def _clip_line(
-        x0: float,
-        y0: float,
-        x1: float,
-        y1: float,
-        width: int,
-        height: int,
-    ) -> tuple[float, float, float, float] | None:
-        """
-        Clip a segment to the raster's pixel-coordinate rectangle using
-        Liang-Barsky clipping. This prevents extremely long off-canvas
-        segments from requiring unnecessarily long rasterization loops.
-        """
-        if not all(math.isfinite(v) for v in (x0, y0, x1, y1)):
-            raise ValueError("Line coordinates must be finite.")
-
-        xmin, ymin = 0.0, 0.0
-        xmax, ymax = float(width - 1), float(height - 1)
-
-        dx = x1 - x0
-        dy = y1 - y0
-
-        p = (-dx, dx, -dy, dy)
-        q = (
-            x0 - xmin,
-            xmax - x0,
-            y0 - ymin,
-            ymax - y0,
+        # Reuse the canvas across sequential images.
+        self._canvas = torch.zeros(
+            (self.high_height, self.high_width),
+            dtype=torch.float32,
+            device=self.device,
         )
 
-        t_enter = 0.0
-        t_exit = 1.0
+        self._attachment_points_gpu = None
 
-        for pi, qi in zip(p, q):
-            if pi == 0.0:
-                if qi < 0.0:
-                    return None
-                continue
-
-            t = qi / pi
-
-            if pi < 0.0:
-                t_enter = max(t_enter, t)
-            else:
-                t_exit = min(t_exit, t)
-
-            if t_enter > t_exit:
-                return None
-
-        return (
-            x0 + t_enter * dx,
-            y0 + t_enter * dy,
-            x0 + t_exit * dx,
-            y0 + t_exit * dy,
+        # Vectorized decoding is valid when Geometry's standard
+        # implementation of decode_string is in use.
+        self._vectorized_geometry = (
+            isinstance(geometry, Geometry)
+            and type(geometry).decode_string is Geometry.decode_string
         )
 
-    @staticmethod
-    def _plot(
-        canvas: torch.Tensor,
-        x: int,
-        y: int,
-        coverage: float,
-    ) -> None:
-        """Accumulate coverage at a valid pixel."""
-        if (
-            0 <= x < canvas.shape[1]
-            and 0 <= y < canvas.shape[0]
-            and coverage > 0.0
-        ):
-            canvas[y, x] += coverage
-
-    def _draw_wu_line(
-        self,
-        canvas: torch.Tensor,
-        x0: float,
-        y0: float,
-        x1: float,
-        y1: float,
-    ) -> None:
-        """Draw one anti-aliased segment onto a floating-point canvas."""
-        clipped = self._clip_line(
-            x0, y0, x1, y1,
-            width=self.high_width,
-            height=self.high_height,
-        )
-
-        if clipped is None:
-            return
-
-        x0, y0, x1, y1 = clipped
-
-        # Wu's algorithm is easiest to express for shallow lines.
-        # Swap axes for steep lines and swap endpoints to draw left-to-right.
-        steep = abs(y1 - y0) > abs(x1 - x0)
-
-        if steep:
-            x0, y0 = y0, x0
-            x1, y1 = y1, x1
-
-        if x0 > x1:
-            x0, x1 = x1, x0
-            y0, y1 = y1, y0
-
-        dx = x1 - x0
-        dy = y1 - y0
-
-        # A zero-length segment has no well-defined line slope. Render it
-        # as a single pixel instead of dividing by zero.
-        if abs(dx) < 1e-12:
-            x = self._round(x0)
-            y = self._round(y0)
-
-            if steep:
-                x, y = y, x
-
-            self._plot(canvas, x, y, 1.0)
-            return
-
-        gradient = dy / dx
-
-        def plot(x: int, y: int, coverage: float) -> None:
-            if steep:
-                self._plot(canvas, y, x, coverage)
-            else:
-                self._plot(canvas, x, y, coverage)
-
-        # First endpoint.
-        xend = self._round(x0)
-        yend = y0 + gradient * (xend - x0)
-        xgap = self._rfpart(x0 + 0.5)
-        xpxl1 = xend
-        ypxl1 = self._ipart(yend)
-
-        plot(xpxl1, ypxl1, self._rfpart(yend) * xgap)
-        plot(xpxl1, ypxl1 + 1, self._fpart(yend) * xgap)
-
-        intery = yend + gradient
-
-        # Second endpoint.
-        xend = self._round(x1)
-        yend = y1 + gradient * (xend - x1)
-        xgap = self._fpart(x1 + 0.5)
-        xpxl2 = xend
-        ypxl2 = self._ipart(yend)
-
-        plot(xpxl2, ypxl2, self._rfpart(yend) * xgap)
-        plot(xpxl2, ypxl2 + 1, self._fpart(yend) * xgap)
-
-        # Interior pixels.
-        for x in range(xpxl1 + 1, xpxl2):
-            y = self._ipart(intery)
-
-            plot(x, y, self._rfpart(intery))
-            plot(x, y + 1, self._fpart(intery))
-
-            intery += gradient
+        if self._vectorized_geometry:
+            self._attachment_points_gpu = (
+                geometry.get_attachment_points()
+                .to(device=self.device, dtype=torch.float32)
+                .contiguous()
+            )
 
     @torch.no_grad()
     def render(
         self,
         strings: Sequence[tuple[int, int]],
     ) -> torch.Tensor:
-        """
-        Render endpoint-token pairs into a [H, W] float32 darkness image.
-
-        The geometry implementation is responsible for resolving the
-        complete string's attachment coordinates. No assumptions are
-        made about circular pin arrangements or endpoint independence.
-        """
-        # Accumulate at high resolution in floating point.
-        high_res = torch.zeros(
-            (self.high_height, self.high_width),
-            dtype=torch.float32,
-            device="cpu",
-        )
-
-        for endpoints in strings:
-            if len(endpoints) != 2:
+        # Validate pairs and retain the original int conversion behavior.
+        endpoints = []
+        for pair in strings:
+            if len(pair) != 2:
                 raise ValueError(
                     "Each string must contain exactly two endpoint tokens."
                 )
+            endpoints.append((int(pair[0]), int(pair[1])))
 
-            endpoint_0, endpoint_1 = endpoints
+        self._canvas.zero_()
 
-            # Coordinates are in target-image pixel space.
-            (x0, y0), (x1, y1) = self.geometry.decode_string(
-                int(endpoint_0),
-                int(endpoint_1),
+        if endpoints:
+            tokens = torch.tensor(
+                endpoints,
+                dtype=torch.int64,
+                device=self.device,
             )
 
-            # Transform target-image coordinates into high-resolution space.
-            x0 = float(x0) * self.scale
-            y0 = float(y0) * self.scale
-            x1 = float(x1) * self.scale
-            y1 = float(y1) * self.scale
+            if self._vectorized_geometry:
+                token_count = 2 * self.config.num_pins
+                if (
+                    (tokens < 0).any().item()
+                    or (tokens >= token_count).any().item()
+                ):
+                    raise ValueError(
+                        f"Endpoint tokens must be in [0, {token_count - 1}]."
+                    )
 
-            self._draw_wu_line(high_res, x0, y0, x1, y1)
+                # [N, 2, 2]: coordinates for both endpoints of each line.
+                points = self._attachment_points_gpu[
+                    tokens // 2, tokens % 2
+                ]
+                lines = points.reshape(-1, 4).contiguous()
+            else:
+                # Preserve custom geometry semantics: decode each
+                # complete pair on the CPU before transferring coordinates.
+                coordinates = []
+                for a, b in endpoints:
+                    (x0, y0), (x1, y1) = self.geometry.decode_string(a, b)
+                    coordinates.append((x0, y0, x1, y1))
 
-        # Additive darkness accumulation; intersections saturate at 1.
-        high_res.clamp_(0.0, 1.0)
+                lines = torch.tensor(
+                    coordinates,
+                    dtype=torch.float32,
+                    device=self.device,
+                )
 
-        # Area averaging is a box-filter downsampling operation for
-        # integer scale factors. Keep floating-point intensities.
+            # Validate coordinates before launching the GPU kernel.
+            if not torch.isfinite(lines).all().item():
+                raise ValueError("Line coordinates must be finite.")
+
+            # Convert target-image coordinates to high-resolution pixels.
+            lines = lines * self.scale
+            lines = lines.contiguous()
+
+            _rasterize_lines_kernel[(len(endpoints),)](
+                lines,
+                self._canvas,
+                self.high_width,
+                self.high_height,
+                BLOCK=256,
+                num_warps=4,
+            )
+
+        # Accumulation and downsampling stay on the GPU.
+        self._canvas.clamp_(0.0, 1.0)
+
         if self.scale > 1:
             image = F.avg_pool2d(
-                high_res.unsqueeze(0).unsqueeze(0),
+                self._canvas[None, None],
                 kernel_size=self.scale,
                 stride=self.scale,
             )[0, 0]
         else:
-            image = high_res
+            image = self._canvas
 
-        return image.clamp(0.0, 1.0).contiguous()
+        return image.clamp_(0.0, 1.0).cpu().contiguous()
 
     def save_image(
         self,
         image: torch.Tensor,
         path: str,
     ) -> None:
-        """
-        Save a darkness tensor as an 8-bit grayscale image.
-
-        The in-memory convention uses 0 = white and 1 = black, so the
-        stored display intensity is inverted to 255 = white and 0 = black.
-        """
         if image.ndim != 2:
             raise ValueError(
                 f"Expected a 2D grayscale image, got shape {tuple(image.shape)}."
             )
 
-        if tuple(image.shape) != (
+        expected = (
             self.config.image_height,
             self.config.image_width,
-        ):
+        )
+        if tuple(image.shape) != expected:
             raise ValueError(
-                "Image dimensions do not match ModelConfig: "
-                f"expected {(self.config.image_height, self.config.image_width)}, "
-                f"got {tuple(image.shape)}."
+                f"Expected image shape {expected}, got {tuple(image.shape)}."
             )
 
-        image = image.detach().to(device="cpu", dtype=torch.float32)
-        image = image.clamp(0.0, 1.0)
+        image = image.detach().to(
+            device="cpu", dtype=torch.float32
+        ).clamp(0.0, 1.0)
 
-        # Convert darkness into conventional grayscale brightness.
-        pixels = ((1.0 - image) * 255.0).round().to(torch.uint8).numpy()
+        pixels = (
+            (1.0 - image) * 255.0
+        ).round().to(torch.uint8).numpy()
 
         output_path = Path(path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        Image.fromarray(pixels, mode="L").save(output_path)
+        Image.fromarray(pixels).save(output_path)

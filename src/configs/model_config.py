@@ -5,8 +5,8 @@ import json
 @dataclass
 class ModelConfig:
     # Image dimensions (model input)
-    image_height: int = 256
-    image_width: int = 256
+    image_height: int = 512
+    image_width: int = 512
 
     # Circular frame geometry, in image pixels
     num_pins: int = 256
