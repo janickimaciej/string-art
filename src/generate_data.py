@@ -12,7 +12,7 @@ from data.synthetic_dataset import SyntheticDataset
 
 from rendering.geometry import Geometry
 from rendering.rasterizer import WuRasterizer
-from tokenizers.string_tokenizer import StringTokenizer
+from custom_tokenizers.string_tokenizer import StringTokenizer
 
 
 def parse_args() -> argparse.Namespace:

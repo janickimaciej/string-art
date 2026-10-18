@@ -6,8 +6,8 @@ import torch
 
 from configs.inference_config import InferenceConfig
 from models.IEncoderDecoder import IEncoderDecoder
-from tokenizers.IImageTokenizer import IImageTokenizer
-from tokenizers.IStringTokenizer import IStringTokenizer
+from custom_tokenizers.IImageTokenizer import IImageTokenizer
+from custom_tokenizers.IStringTokenizer import IStringTokenizer
 from rendering.IRasterizer import IRasterizer
 
 

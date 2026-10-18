@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from configs.model_config import ModelConfig
-from tokenizers.image_tokenizer import ImageTokenizer
+from custom_tokenizers.image_tokenizer import ImageTokenizer
 from models.image_encoder import ImageEncoder
 from models.decoder import GPT2Decoder
 
