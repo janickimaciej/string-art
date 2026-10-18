@@ -3,7 +3,6 @@ from pathlib import Path
 import torch
 
 from configs.model_config import ModelConfig
-from configs.data_generation_config import DataGenerationConfig
 from rendering.rasterizer import WuRasterizer
 from rendering.geometry import Geometry
 

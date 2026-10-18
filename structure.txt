@@ -1,6 +1,9 @@
 artifacts/
 ├── inference/
 ├── models/
+    └── model
+        ├── best.pt
+        └── last.py
 └── generated_data/
     └── dataset
         ├── train/

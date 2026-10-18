@@ -1,5 +1,5 @@
 {
-  "checkpoint_path": "checkpoints/best_model.pt",
+  "checkpoint_path": "artifacts/models/model/checkpoints/best_model.pt",
   "device": "auto",
   "max_strings": 256,
   "temperature": 1.0,

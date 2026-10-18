@@ -103,8 +103,8 @@ class Trainer(ITrainer):
             getattr(training_config, "gradient_clip_norm", 1.0)
         )
 
-        self.checkpoint_dir = Path(
-            getattr(training_config, "checkpoint_dir", "checkpoints")
+        self.model_dir = Path(
+            getattr(training_config, "model_dir", "checkpoints")
         )
 
         self.save_every_epochs = int(
@@ -293,7 +293,7 @@ class Trainer(ITrainer):
         if len(validation_loader) == 0:
             raise ValueError("Validation DataLoader is empty.")
 
-        self.checkpoint_dir.mkdir(
+        self.model_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
@@ -331,16 +331,16 @@ class Trainer(ITrainer):
             if validation_loss < self.best_validation_loss:
                 self.best_validation_loss = validation_loss
                 self.save_checkpoint(
-                    self.checkpoint_dir / "best.pt"
+                    self.model_dir / "best.pt"
                 )
 
             if epoch_number % self.save_every_epochs == 0:
                 self.save_checkpoint(
-                    self.checkpoint_dir / "last.pt"
+                    self.model_dir / "last.pt"
                 )
 
         self.save_checkpoint(
-            self.checkpoint_dir / "last.pt"
+            self.model_dir / "last.pt"
         )
 
     def save_checkpoint(

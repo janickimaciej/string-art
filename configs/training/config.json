@@ -1,11 +1,11 @@
 {
-  "dataset_dir": "data/generated",
+  "dataset_dir": "artifacts/generated_data/dataset",
   "batch_size": 32,
   "num_epochs": 20,
   "learning_rate": 0.0003,
   "weight_decay": 0.01,
   "num_workers": 4,
-  "checkpoint_dir": "checkpoints",
+  "model_dir": "artifacts/models/model",
   "log_interval": 100,
   "seed": 42
 }

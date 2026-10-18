@@ -17,7 +17,7 @@ class TrainingConfig:
     num_workers: int = 4
 
     # Checkpoints and logging
-    checkpoint_dir: str = "checkpoints"
+    model_dir: str = "artifacts/models/model"
     log_interval: int = 100
     seed: int = 42
 

@@ -2,7 +2,7 @@
   "image_height": 512,
   "image_width": 512,
   "num_pins": 256,
-  "frame_radius": 115.0,
+  "frame_radius": 256.0,
   "pin_diameter": 3.0,
   "supersampling_factor": 8,
   "bos_token_id": 512,

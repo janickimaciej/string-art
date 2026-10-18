@@ -10,7 +10,7 @@ class ModelConfig:
 
     # Circular frame geometry, in image pixels
     num_pins: int = 256
-    frame_radius: float = 115.0
+    frame_radius: float = 256.0
     pin_diameter: float = 3.0
 
     # High-resolution rasterization
