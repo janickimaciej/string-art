@@ -1,12 +1,12 @@
 {
   "output_dir": "artifacts/generated_data/dataset",
-  "train_samples": 1,
-  "validation_samples": 1,
-  "test_samples": 1,
+  "train_samples": 800,
+  "validation_samples": 100,
+  "test_samples": 100,
   "min_strings": 1,
-  "max_strings": 8192,
-  "avg_strings": 4096,
-  "stddev_strings": 1024,
+  "max_strings": 500,
+  "avg_strings": 250,
+  "stddev_strings": 100,
   "seed": 42,
   "samples_per_shard": 1000
 }

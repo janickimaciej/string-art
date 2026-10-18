@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-path = "artifacts/train/shard_00000.npz"
+path = "artifacts/generated_data/dataset/train/shard_00000.npz"
 
 with np.load(path) as data:
     images = data["images"]
