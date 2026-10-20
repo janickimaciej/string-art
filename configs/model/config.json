@@ -8,7 +8,7 @@
   "bos_token_id": 512,
   "eos_token_id": 513,
   "vocab_size": 514,
-  "max_strings": 500,
+  "max_strings": 2000,
   "hidden_dim": 256,
   "num_heads": 8,
   "encoder_layers": 4,
