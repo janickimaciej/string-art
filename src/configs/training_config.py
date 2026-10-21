@@ -9,7 +9,7 @@ class TrainingConfig:
 
     # Training
     batch_size: int = 32
-    num_epochs: int = 20
+    epochs: int = 20
     learning_rate: float = 3e-4
     weight_decay: float = 0.01
 
@@ -23,7 +23,7 @@ class TrainingConfig:
 
     def __post_init__(self):
         assert self.batch_size > 0
-        assert self.num_epochs > 0
+        assert self.epochs > 0
         assert self.learning_rate > 0
         assert self.weight_decay >= 0
         assert self.num_workers >= 0
