@@ -11,10 +11,10 @@ class IStringGenerator(ABC):
     def __init__(
         self,
         model_config: ModelConfig,
-        data_config: DataGenerationConfig,
+        data_generation_config: DataGenerationConfig,
     ) -> None:
         self.model_config = model_config
-        self.data_config = data_config
+        self.data_generation_config = data_generation_config
 
     @abstractmethod
     def generate(self) -> list[tuple[int, int]]:
@@ -51,15 +51,15 @@ class StringGenerator(IStringGenerator):
     def __init__(
         self,
         model_config: ModelConfig,
-        data_config: DataGenerationConfig,
+        data_generation_config: DataGenerationConfig,
     ) -> None:
-        super().__init__(model_config, data_config)
+        super().__init__(model_config, data_generation_config)
 
-        self._rng = random.Random(data_config.seed)
+        self._rng = random.Random(data_generation_config.seed)
 
-        self._min_strings = data_config.min_strings
+        self._min_strings = data_generation_config.min_strings
         self._max_strings = min(
-            data_config.max_strings,
+            data_generation_config.max_strings,
             model_config.max_strings,
         )
 
@@ -70,14 +70,14 @@ class StringGenerator(IStringGenerator):
                 f"({self._max_strings})."
             )
 
-        if data_config.stddev_strings < 0:
+        if data_generation_config.stddev_strings < 0:
             raise ValueError(
                 "stddev_strings must be non-negative."
             )
 
         if not (
             self._min_strings
-            <= data_config.avg_strings
+            <= data_generation_config.avg_strings
             <= self._max_strings
         ):
             raise ValueError(
@@ -140,8 +140,8 @@ class StringGenerator(IStringGenerator):
 
     def _sample_string_count(self) -> int:
         """Sample a bounded, approximately normal string count."""
-        mean = self.data_config.avg_strings
-        stddev = self.data_config.stddev_strings
+        mean = self.data_generation_config.avg_strings
+        stddev = self.data_generation_config.stddev_strings
 
         if stddev == 0:
             count = mean

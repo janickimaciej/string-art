@@ -25,13 +25,13 @@ class ISyntheticDataset(ABC):
     def __init__(
         self,
         model_config: ModelConfig,
-        data_config: DataGenerationConfig,
+        data_generation_config: DataGenerationConfig,
         string_generator: IStringGenerator,
         string_tokenizer: IStringTokenizer,
         rasterizer: IRasterizer,
     ) -> None:
         self.model_config = model_config
-        self.data_config = data_config
+        self.data_generation_config = data_generation_config
         self.string_generator = string_generator
         self.string_tokenizer = string_tokenizer
         self.rasterizer = rasterizer
@@ -69,7 +69,7 @@ class SyntheticDataset(ISyntheticDataset):
     def __init__(
         self,
         model_config: ModelConfig,
-        data_config: DataGenerationConfig,
+        data_generation_config: DataGenerationConfig,
         string_generator: IStringGenerator,
         string_tokenizer: IStringTokenizer,
         rasterizer: IRasterizer,
@@ -77,12 +77,12 @@ class SyntheticDataset(ISyntheticDataset):
     ) -> None:
         super().__init__(
             model_config,
-            data_config,
+            data_generation_config,
             string_generator,
             string_tokenizer,
             rasterizer,
         )
-        self.output_dir = Path(data_config.output_dir)
+        self.output_dir = Path(data_generation_config.output_dir)
         self.allow_overwrite = allow_overwrite
         self._validate_dependencies()
 
@@ -99,25 +99,25 @@ class SyntheticDataset(ISyntheticDataset):
                 "Rasterizer configuration does not match ModelConfig."
             )
 
-        if self.data_config.samples_per_shard < 1:
+        if self.data_generation_config.samples_per_shard < 1:
             raise ValueError("samples_per_shard must be positive.")
 
         effective_max = min(
-            self.data_config.max_strings,
+            self.data_generation_config.max_strings,
             config.max_strings,
         )
 
         if not (
-            1 <= self.data_config.min_strings <= effective_max
+            1 <= self.data_generation_config.min_strings <= effective_max
         ):
             raise ValueError("Invalid string-count limits.")
 
-        if self.data_config.stddev_strings < 0:
+        if self.data_generation_config.stddev_strings < 0:
             raise ValueError("stddev_string must be non-negative.")
 
         if not (
-            self.data_config.min_strings
-            <= self.data_config.avg_strings
+            self.data_generation_config.min_strings
+            <= self.data_generation_config.avg_strings
             <= effective_max
         ):
             raise ValueError(
@@ -171,11 +171,11 @@ class SyntheticDataset(ISyntheticDataset):
 
         count = len(endpoints) // 2
         maximum = min(
-            self.data_config.max_strings,
+            self.data_generation_config.max_strings,
             config.max_strings,
         )
 
-        if not self.data_config.min_strings <= count <= maximum:
+        if not self.data_generation_config.min_strings <= count <= maximum:
             raise ValueError(
                 f"String count {count} is outside the configured limits."
             )
@@ -305,7 +305,7 @@ class SyntheticDataset(ISyntheticDataset):
         split_dir.mkdir(parents=True, exist_ok=True)
 
         generator = self._make_split_generator(seed)
-        shard_size = self.data_config.samples_per_shard
+        shard_size = self.data_generation_config.samples_per_shard
 
         examples = []
         shard_index = 0
@@ -336,7 +336,7 @@ class SyntheticDataset(ISyntheticDataset):
 
     def _build_metadata(self, split_metadata: dict) -> dict:
         config = self.model_config
-        data_config = self.data_config
+        data_generation_config = self.data_generation_config
 
         return {
             "format_version": self.FORMAT_VERSION,
@@ -372,26 +372,26 @@ class SyntheticDataset(ISyntheticDataset):
                 "eos_token_id": config.eos_token_id,
                 "vocab_size": config.vocab_size,
                 "max_strings": min(
-                    data_config.max_strings,
+                    data_generation_config.max_strings,
                     config.max_strings,
                 ),
                 "max_sequence_length": config.max_sequence_length,
             },
             "string_sampling": {
-                "min_strings": data_config.min_strings,
+                "min_strings": data_generation_config.min_strings,
                 "max_strings": min(
-                    data_config.max_strings,
+                    data_generation_config.max_strings,
                     config.max_strings,
                 ),
-                "avg_strings": data_config.avg_strings,
-                "stddev_string": data_config.stddev_strings,
+                "avg_strings": data_generation_config.avg_strings,
+                "stddev_string": data_generation_config.stddev_strings,
                 "count_distribution": "clipped normal",
                 "duplicate_strings": False,
                 "self_loops": False,
                 "same_pin_connections": False,
             },
             "sharding": {
-                "samples_per_shard": data_config.samples_per_shard,
+                "samples_per_shard": data_generation_config.samples_per_shard,
                 "arrays": ["images", "tokens", "lengths"],
                 "token_dtype": "int32",
                 "padding_value": -1,
@@ -399,7 +399,7 @@ class SyntheticDataset(ISyntheticDataset):
             "splits": split_metadata,
             "generation_config": {
                 "model_config": vars(config),
-                "data_generation_config": vars(data_config),
+                "data_generation_config": vars(data_generation_config),
             },
         }
 
@@ -421,9 +421,9 @@ class SyntheticDataset(ISyntheticDataset):
         )
 
         split_sizes = {
-            "train": self.data_config.train_samples,
-            "validation": self.data_config.validation_samples,
-            "test": self.data_config.test_samples,
+            "train": self.data_generation_config.train_samples,
+            "validation": self.data_generation_config.validation_samples,
+            "test": self.data_generation_config.test_samples,
         }
 
         split_metadata = {}
@@ -431,7 +431,7 @@ class SyntheticDataset(ISyntheticDataset):
         try:
             for split_name, sample_count in split_sizes.items():
                 seed = (
-                    self.data_config.seed
+                    self.data_generation_config.seed
                     + self.SPLIT_SEED_OFFSETS[split_name]
                 )
 

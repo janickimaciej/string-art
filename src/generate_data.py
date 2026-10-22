@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--data-config",
+        "--data-generation-config",
         type=Path,
         required=True,
         help="Path to the data-generation configuration JSON file.",
@@ -48,10 +48,10 @@ def parse_args() -> argparse.Namespace:
 
 def validate_config_paths(
     model_config_path: Path,
-    data_config_path: Path,
+    data_generation_config_path: Path,
 ) -> None:
     """Validate configuration files before loading them."""
-    for path in (model_config_path, data_config_path):
+    for path in (model_config_path, data_generation_config_path):
         if not path.is_file():
             raise FileNotFoundError(
                 f"Configuration file does not exist: {path}"
@@ -64,7 +64,7 @@ def main() -> int:
     try:
         validate_config_paths(
             args.model_config,
-            args.data_config,
+            args.data_generation_config,
         )
 
         # Load configuration exclusively from the supplied JSON files.
@@ -72,29 +72,29 @@ def main() -> int:
             str(args.model_config)
         )
 
-        data_config = DataGenerationConfig.from_json(
-            str(args.data_config)
+        data_generation_config = DataGenerationConfig.from_json(
+            str(args.data_generation_config)
         )
 
-        output_dir = Path(data_config.output_dir)
+        output_dir = Path(data_generation_config.output_dir)
 
         print("String Art synthetic dataset generation")
         print("---------------------------------------")
         print(f"Model config:  {args.model_config}")
-        print(f"Data config:   {args.data_config}")
+        print(f"Data config:   {args.data_generation_config}")
         print(f"Output dir:    {output_dir}")
         print(
             "Split sizes:   "
-            f"train={data_config.train_samples}, "
-            f"validation={data_config.validation_samples}, "
-            f"test={data_config.test_samples}"
+            f"train={data_generation_config.train_samples}, "
+            f"validation={data_generation_config.validation_samples}, "
+            f"test={data_generation_config.test_samples}"
         )
         print(
             "String limits: "
-            f"{data_config.min_strings}.."
-            f"{min(data_config.max_strings, model_config.max_strings)}"
+            f"{data_generation_config.min_strings}.."
+            f"{min(data_generation_config.max_strings, model_config.max_strings)}"
         )
-        print(f"Base seed:     {data_config.seed}")
+        print(f"Base seed:     {data_generation_config.seed}")
         print()
 
         # Initialize the shared geometry and rendering dependencies.
@@ -104,12 +104,12 @@ def main() -> int:
 
         generator = StringGenerator(
             model_config=model_config,
-            data_config=data_config,
+            data_generation_config=data_generation_config,
         )
 
         dataset = SyntheticDataset(
             model_config=model_config,
-            data_config=data_config,
+            data_generation_config=data_generation_config,
             string_generator=generator,
             string_tokenizer=tokenizer,
             rasterizer=rasterizer,
