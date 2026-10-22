@@ -17,3 +17,5 @@ with np.load(path) as data:
     plt.title("Training Sample 0")
     plt.axis("off")
     plt.show()
+    plt.imsave("artifacts/training_sample_0.png", images[0],
+           cmap="gray", vmin=0, vmax=255)

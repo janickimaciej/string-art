@@ -13,7 +13,7 @@ class InferenceConfig:
     greedy: bool = True
 
     # Output
-    output_dir: str = "outputs"
+    output_dir: str = "artifacts/inference/"
     save_rendered_image: bool = True
 
     def __post_init__(self):
