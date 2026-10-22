@@ -1,7 +1,7 @@
 {
   "checkpoint_path": "artifacts/models/model/best.pt",
   "device": "auto",
-  "max_strings": 256,
+  "max_strings": 2000,
   "temperature": 1.0,
   "greedy": true,
   "output_dir": "outputs",

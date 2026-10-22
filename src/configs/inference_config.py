@@ -8,12 +8,12 @@ class InferenceConfig:
     device: str = "auto"
 
     # Generation
-    max_strings: int = 256
+    max_strings: int = 2000
     temperature: float = 1.0
     greedy: bool = True
 
     # Output
-    output_dir: str = "artifacts/inference/"
+    output_dir: str = "artifacts/inference"
     save_rendered_image: bool = True
 
     def __post_init__(self):
