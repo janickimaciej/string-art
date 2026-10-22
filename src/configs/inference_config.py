@@ -4,7 +4,7 @@ import json
 
 @dataclass
 class InferenceConfig:
-    checkpoint_path: str = "checkpoints/best_model.pt"
+    checkpoint_path: str = "artifacts/models/model/best.pt"
     device: str = "auto"
 
     # Generation

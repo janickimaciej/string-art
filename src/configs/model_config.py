@@ -14,15 +14,10 @@ class ModelConfig:
     pin_diameter: float = 3.0
 
     # High-resolution rasterization
-    supersampling_factor: int = 4
-
-    # Token vocabulary
-    bos_token_id: int = num_pins * 2
-    eos_token_id: int = bos_token_id + 1
-    vocab_size: int = eos_token_id + 1
+    supersampling_factor: int = 8
 
     # Maximum number of strings
-    max_strings: int = 130_560
+    max_strings: int = 2000
 
     # Transformer
     hidden_dim: int = 256
@@ -31,20 +26,29 @@ class ModelConfig:
     decoder_layers: int = 4
     dropout: float = 0.1
 
+    @property
+    def bos_token_id(self) -> int:
+        return self.num_pins * 2
+
+    @property
+    def eos_token_id(self) -> int:
+        return self.bos_token_id + 1
+
+    @property
+    def vocab_size(self) -> int:
+        return self.eos_token_id + 1
+
+    @property
+    def max_sequence_length(self) -> int:
+        return 2 * self.max_strings + 2
+
     def __post_init__(self):
         assert self.num_pins >= 3
-        assert self.bos_token_id == self.num_pins * 2
-        assert self.eos_token_id == self.bos_token_id + 1
-        assert self.vocab_size == self.eos_token_id + 1
         assert self.hidden_dim % self.num_heads == 0
         assert self.max_strings >= 1
         assert self.supersampling_factor >= 1
         assert self.frame_radius > 0
         assert self.pin_diameter > 0
-
-    @property
-    def max_sequence_length(self) -> int:
-        return 2 * self.max_strings + 2
 
     def to_json(self, path: str):
         with open(path, "w", encoding="utf-8") as f:

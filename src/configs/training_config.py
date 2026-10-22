@@ -10,7 +10,7 @@ class TrainingConfig:
     # Training
     batch_size: int = 32
     epochs: int = 20
-    learning_rate: float = 3e-4
+    learning_rate: float = 0.0003
     weight_decay: float = 0.01
 
     # Data loading

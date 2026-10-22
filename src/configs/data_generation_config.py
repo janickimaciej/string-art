@@ -8,21 +8,21 @@ class DataGenerationConfig:
     output_dir: str = "artifacts/generated_data/dataset"
 
     # Dataset sizes
-    train_samples: int = 100_000
-    validation_samples: int = 5_000
-    test_samples: int = 5_000
+    train_samples: int = 8000
+    validation_samples: int = 1000
+    test_samples: int = 1000
 
     # Random string configurations
     min_strings: int = 1
-    max_strings: int = 32_768
-    avg_strings: int = 8192
-    stddev_strings: int = 2048
+    max_strings: int = 2000
+    avg_strings: int = 1000
+    stddev_strings: int = 500
 
     # Reproducibility
     seed: int = 42
 
     # Generation performance
-    samples_per_shard: int = 1_000
+    samples_per_shard: int = 1000
 
     def __post_init__(self):
         assert self.train_samples > 0
