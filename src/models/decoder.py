@@ -109,7 +109,7 @@ class GPT2Decoder(IDecoder):
         # We provide our own structural position embeddings, so disable
         # GPT-2's learned absolute positional embeddings.
         self.gpt2.transformer.wpe = nn.Embedding(
-            max_positions,
+            self.max_positions,
             config.hidden_dim,
         )
         nn.init.zeros_(self.gpt2.transformer.wpe.weight)
@@ -389,8 +389,11 @@ class GPT2Decoder(IDecoder):
                 past_key_values = outputs.past_key_values
                 next_logits = outputs.logits[:, -1, :].float()
 
-                # BOS is never a valid continuation token.
-                next_logits[:, self.config.bos_token_id] = float("-inf")
+                next_logits = self._mask_invalid_next_tokens(
+                    logits=next_logits,
+                    sequences=sequences,
+                    max_strings=max_strings,
+                )
 
                 endpoint_count = sequences.shape[1] - 1
 
@@ -450,3 +453,89 @@ class GPT2Decoder(IDecoder):
             self.train(was_training)
 
         return sequences
+
+    def _mask_invalid_next_tokens(
+        self,
+        logits: torch.Tensor,
+        sequences: torch.Tensor,
+        max_strings: int,
+    ) -> torch.Tensor:
+        """Mask tokens that violate string-art sequence constraints."""
+        vocab_size = 514
+        endpoint_vocab_size = 512
+        bos_id = self.config.bos_token_id
+        eos_id = self.config.eos_token_id
+
+        logits = logits.clone()
+        device = logits.device
+
+        for batch_idx in range(sequences.shape[0]):
+            generated = sequences[batch_idx, 1:].tolist()
+
+            # Ignore anything after EOS for finished sequences.
+            if eos_id in generated:
+                generated = generated[:generated.index(eos_id)]
+
+            n = len(generated)
+            n_edges = n // 2
+            at_edge_start = (n % 2 == 0)
+
+            original_logits = logits[batch_idx].clone()
+            allowed = torch.zeros(vocab_size, dtype=torch.bool, device=device)
+
+            if at_edge_start:
+                # A complete configuration may terminate here.
+                allowed[eos_id] = True
+
+                if n_edges >= max_strings:
+                    allowed[:] = False
+                    allowed[eos_id] = True
+                else:
+                    prev_a = generated[-2] if n_edges else None
+                    prev_b = generated[-1] if n_edges else None
+
+                    for a in range(endpoint_vocab_size):
+                        # Require at least one valid second endpoint.
+                        b = torch.arange(endpoint_vocab_size, device=device)
+                        valid_b = (
+                            (b > a)
+                            & ((b // 2) != (a // 2))
+                        )
+
+                        if prev_a is not None:
+                            if a < prev_a:
+                                continue
+                            if a == prev_a:
+                                valid_b &= b > prev_b
+
+                        if valid_b.any():
+                            allowed[a] = True
+
+            else:
+                # A second endpoint is mandatory to complete this edge.
+                a = generated[-1]
+                b = torch.arange(endpoint_vocab_size, device=device)
+
+                valid_b = (
+                    (b > a)
+                    & ((b // 2) != (a // 2))
+                )
+
+                # Compare the current edge against the previous complete edge.
+                if n_edges >= 1:
+                    prev_a = generated[-3]
+                    prev_b = generated[-2]
+
+                    if a < prev_a:
+                        valid_b[:] = False
+                    elif a == prev_a:
+                        valid_b &= b > prev_b
+
+                allowed[:endpoint_vocab_size] = valid_b
+
+            allowed[bos_id] = False
+            logits[batch_idx] = original_logits.masked_fill(
+                ~allowed, float("-inf")
+            )
+
+        return logits
