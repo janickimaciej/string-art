@@ -4,6 +4,6 @@
   "max_strings": 2000,
   "temperature": 1.0,
   "greedy": true,
-  "output_dir": "outputs",
+  "output_dir": "artifacts/inference",
   "save_rendered_image": true
 }

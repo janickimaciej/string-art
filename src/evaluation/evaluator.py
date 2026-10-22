@@ -4,9 +4,9 @@ from typing import Any
 import torch
 from torch.utils.data import DataLoader
 
-from custom_tokenizers.IStringTokenizer import IStringTokenizer
-from models.IEncoderDecoder import IEncoderDecoder
-from rendering.IRasterizer import IRasterizer
+from custom_tokenizers.string_tokenizer import IStringTokenizer
+from models.encoder_decoder import IEncoderDecoder
+from rendering.rasterizer import IRasterizer
 
 
 class IEvaluator(ABC):
