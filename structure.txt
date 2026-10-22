@@ -49,6 +49,12 @@ src/
 │   ├── geometry.py
 │   └── rasterizer.py
 │
+├── scripts/
+│   ├── evaluate.py
+│   ├── generate_data.py
+│   ├── infer.py
+│   └── train.py
+│
 ├── tokenizers/
 │   ├── image_tokenizer.py
 │   └── string_tokenizer.py
@@ -57,10 +63,5 @@ src/
 │   ├── trainer.py
 │   └── losses.py
 │
-├── utils/
-│   └── reproducibility.py
-│   
-├── generate_dataset.py
-├── training.py
-├── inference.py
-└── evaluate.py
+└── utils/
+    └── reproducibility.py

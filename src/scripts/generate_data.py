@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+import sys
+
+SRC = Path(__file__).resolve().parents[1]
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from configs.model_config import ModelConfig
 from configs.data_generation_config import DataGenerationConfig
-
+from custom_tokenizers.string_tokenizer import StringTokenizer
 from data.string_generator import StringGenerator
 from data.synthetic_dataset import SyntheticDataset
-
 from rendering.geometry import Geometry
 from rendering.rasterizer import WuRasterizer
-from custom_tokenizers.string_tokenizer import StringTokenizer
 
 
 def parse_args() -> argparse.Namespace:

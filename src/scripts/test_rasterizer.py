@@ -1,6 +1,11 @@
 import argparse
 from pathlib import Path
+import sys
 import torch
+
+SRC = Path(__file__).resolve().parents[1]
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from configs.model_config import ModelConfig
 from rendering.rasterizer import WuRasterizer

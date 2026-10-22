@@ -9,10 +9,9 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-# Allow execution with: python scripts/training.py
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+SRC = Path(__file__).resolve().parents[1]
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from configs.model_config import ModelConfig
 from configs.training_config import TrainingConfig

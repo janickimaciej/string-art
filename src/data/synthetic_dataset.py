@@ -14,9 +14,9 @@ import torch
 
 from configs.model_config import ModelConfig
 from configs.data_generation_config import DataGenerationConfig
+from custom_tokenizers.string_tokenizer import IStringTokenizer
 from data.string_generator import IStringGenerator
 from rendering.rasterizer import IRasterizer
-from custom_tokenizers.string_tokenizer import IStringTokenizer
 
 
 class ISyntheticDataset(ABC):

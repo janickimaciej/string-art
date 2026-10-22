@@ -4,8 +4,8 @@ from typing import Any
 import torch
 from torch.utils.data import DataLoader
 
-from models.IEncoderDecoder import IEncoderDecoder
 from custom_tokenizers.IStringTokenizer import IStringTokenizer
+from models.IEncoderDecoder import IEncoderDecoder
 from rendering.IRasterizer import IRasterizer
 
 
