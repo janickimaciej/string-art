@@ -16,6 +16,9 @@ class ModelConfig:
     # High-resolution rasterization
     supersampling_factor: int = 8
 
+    # Maximum number of tokens
+    max_positions: int = 4096
+
     # Maximum number of strings
     max_strings: int = 2000
 
@@ -45,6 +48,7 @@ class ModelConfig:
     def __post_init__(self):
         assert self.num_pins >= 3
         assert self.hidden_dim % self.num_heads == 0
+        assert self.max_positions >= 4
         assert self.max_strings >= 1
         assert self.supersampling_factor >= 1
         assert self.frame_radius > 0

@@ -68,7 +68,6 @@ class GPT2Decoder(IDecoder):
     def __init__(
         self,
         config: ModelConfig,
-        max_positions: int = 1024,
     ) -> None:
         super().__init__(config)
 
@@ -80,20 +79,18 @@ class GPT2Decoder(IDecoder):
             raise ValueError("decoder_layers must be at least 1.")
         if not 0.0 <= config.dropout < 1.0:
             raise ValueError("dropout must be in [0, 1).")
-        if max_positions < 4:
-            raise ValueError("max_positions must be at least 4.")
 
-        self.max_positions = max_positions
+        self.max_positions = config.max_positions
         self.max_supported_strings = min(
             config.max_strings,
-            (max_positions - 2) // 2,
+            (self.max_positions - 2) // 2,
         )
 
         # GPT-2 architecture with encoder-decoder cross-attention.
         gpt_config = GPT2Config(
             vocab_size=config.vocab_size,
-            n_positions=max_positions,
-            n_ctx=max_positions,
+            n_positions=self.max_positions,
+            n_ctx=self.max_positions,
             n_embd=config.hidden_dim,
             n_layer=config.decoder_layers,
             n_head=config.num_heads,

@@ -67,13 +67,6 @@ def parse_args() -> argparse.Namespace:
         help="Training device: auto, cpu, cuda, or cuda:0.",
     )
 
-    parser.add_argument(
-        "--max-positions",
-        type=int,
-        default=1024,
-        help="GPT-2 decoder context length.",
-    )
-
     return parser.parse_args()
 
 
@@ -143,9 +136,6 @@ def main() -> None:
             f"Training configuration not found: {args.training_config}"
         )
 
-    if args.max_positions < 4:
-        raise ValueError("--max-positions must be at least 4.")
-
     # Load the explicitly provided configurations.
     model_config = ModelConfig.from_json(
         str(args.model_config)
@@ -213,7 +203,6 @@ def main() -> None:
 
     model = EncoderDecoder(
         config=model_config,
-        max_positions=args.max_positions,
     )
 
     trainer = Trainer(

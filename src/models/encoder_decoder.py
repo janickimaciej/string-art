@@ -84,7 +84,6 @@ class EncoderDecoder(IEncoderDecoder):
         self,
         config: ModelConfig,
         *,
-        max_positions: int = 1024,
         feature_channels: tuple[int, ...] = (32, 64, 128, 256),
         token_grid_size: tuple[int, int] = (16, 16),
     ) -> None:
@@ -100,7 +99,6 @@ class EncoderDecoder(IEncoderDecoder):
 
         self.decoder = GPT2Decoder(
             config,
-            max_positions=max_positions,
         )
 
     def encode_image(self, images: torch.Tensor) -> torch.Tensor:
