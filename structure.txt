@@ -1,9 +1,9 @@
 artifacts/
 ├── inference/
 ├── models/
-    └── model
-        ├── best.pt
-        └── last.py
+│   └── model
+│       ├── best.pt
+│       └── last.py
 └── generated_data/
     └── dataset
         ├── train/
@@ -64,39 +64,3 @@ src/
 ├── training.py
 ├── inference.py
 └── evaluate.py
-
-# Module Responsibilities and Dependencies
-
-The project is divided into configuration, data generation and loading, tokenization, modeling, rendering, training, evaluation, and inference. Implementation code lives in `src/`, while generated datasets, trained models, and inference outputs are stored in `artifacts/`.
-
-The `configs/` package defines dataclasses for model architecture and geometry, training, inference, and dataset generation. These configurations are passed to the relevant modules rather than duplicating settings across the codebase.
-
-The `data/` package handles synthetic dataset creation and loading. `string_generator.py` generates random string configurations as endpoint-token pairs. `synthetic_dataset.py` combines the generator, string tokenizer, geometry, and Wu rasterizer to create image–token pairs and save them to disk. `dataset_loader.py` reads existing dataset files, while `collator.py` batches examples, pads token sequences, and prepares decoder inputs, labels, and attention masks. Dataset generation is an independent offline step; training must never generate or render examples on the fly.
-
-The `tokenizers/` package converts between representations. `string_tokenizer.py` encodes and decodes endpoint-token sequences, including BOS/EOS and canonical string ordering. `image_tokenizer.py` converts grayscale images into spatial feature tokens using trainable convolutional feature extraction, projection, and positional embeddings.
-
-The `rendering/` package defines the shared pin geometry and image rendering. `geometry.py` calculates pin centers and the two side-specific attachment points per pin, then maps endpoint tokens to coordinates. `rasterizer.py` implements Wu anti-aliased line rendering at high resolution and downsamples the result to the target image size. Both dataset generation and reconstruction evaluation use the same geometry and rasterizer settings.
-
-The `models/` package contains the neural network. `image_encoder.py` applies a Transformer encoder to the spatial feature tokens produced by the image tokenizer. `decoder.py` wraps GPT-2 with causal self-attention and cross-attention to the encoded image. `encoder_decoder.py` combines the image tokenizer, image encoder, and decoder into a single model. Its forward pass returns vocabulary logits for supervised training, and its generation method produces endpoint-token sequences during inference. All trainable components, including the image tokenizer, must be registered as part of the model.
-
-The `training/` package implements supervised optimization. `losses.py` computes token-level cross-entropy while ignoring padded labels. `trainer.py` performs teacher-forced training, validation, checkpoint saving, and checkpoint restoration. It consumes batches from the saved dataset and does not depend on the string generator, synthetic dataset generator, or rasterizer.
-
-The `evaluation/` package measures token prediction quality and image reconstruction quality. `evaluator.py` uses the trained model to generate strings, decodes the predictions, renders the resulting configurations, and compares the rendered images with the target images. It uses the tokenizer and rasterizer rather than implementing its own decoding or rendering logic.
-
-The `inference/` package handles predictions on new images. `inference.py` loads a trained checkpoint, prepares the input image, invokes model generation, decodes the output into strings, and optionally renders and saves the reconstruction.
-
-The `utils/` package contains shared utilities such as reproducible random-seed initialization.
-
-The four entry-point scripts live directly in `src/`. `generate_dataset.py` reads the generation and model configurations and creates a dataset under `artifacts/generated_data/`, including train, validation, test, and metadata files. `training.py` loads an existing dataset and trains the model, saving checkpoints under `artifacts/models/`. `evaluate.py` evaluates a checkpoint against the saved test split. `inference.py` runs predictions on user-provided images and saves outputs under `artifacts/inference/`.
-
-## End-to-end dependencies
-
-**Dataset generation:** configuration → string generator → string tokenizer and geometry → Wu rasterizer → saved image–token pairs and metadata.
-
-**Training:** configuration + saved dataset → dataset loader → collate function → encoder-decoder model → cross-entropy loss → optimizer and checkpoints.
-
-**Evaluation:** saved test dataset + trained checkpoint → model generation → string decoding → rasterization → evaluation metrics.
-
-**Inference:** input image + trained checkpoint → image tokenizer → image encoder → GPT-2 decoder → string tokenizer → optional rasterization and saved output.
-
-The main dependency rule is that shared representations and settings must remain consistent across the pipeline. In particular, token definitions, pin geometry, image dimensions, rasterization settings, and maximum sequence length must match between dataset generation, training, evaluation, and inference.
